@@ -21,7 +21,7 @@ import {
 const tasks = ref([])
 const loading = ref(false)
 const error = ref(null)
-const fileName = ref('Initial Data')
+const fileName = ref('No file selected')
 const searchQuery = ref('')
 const selectedSections = ref([])
 const selectedAssignee = ref('')
@@ -89,21 +89,7 @@ const handleFileUpload = (event) => {
 }
 
 onMounted(() => {
-  loading.value = true
-  Papa.parse('/data.csv', {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: (results) => {
-      tasks.value = results.data
-      loading.value = false
-    },
-    error: (err) => {
-      // Default to empty if initial file not found, don't show error
-      loading.value = false
-      console.warn("Initial data.csv not found")
-    }
-  })
+  loading.value = false
 })
 
 const filteredTasks = computed(() => {
@@ -254,152 +240,171 @@ const getStatusColor = (section) => {
     </header>
 
     <main>
-      <section class="controls glass p-6">
-        <div class="search-wrapper">
-          <Search class="search-icon" :size="20" />
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Search tasks, IDs, or notes..."
-            class="search-input"
-          />
-        </div>
-        
-        <div class="filters">
-          <div class="filter-group section-filter">
-            <label><Filter :size="14" /> Sections (Multi-select)</label>
-            <div class="chip-container">
-              <button 
-                v-for="s in sections" 
-                :key="s" 
-                class="chip"
-                :class="{ active: selectedSections.includes(s) }"
-                @click="toggleSection(s)"
-              >
-                {{ s }}
-              </button>
+      <template v-if="tasks.length === 0 && !loading">
+        <div class="landing-state glass">
+          <div class="landing-content">
+            <div class="landing-icon-box">
+              <Upload :size="48" class="landing-icon" />
             </div>
-          </div>
-          
-          <div class="filter-controls">
-            <div class="filter-group">
-              <label><User :size="14" /> Assignee</label>
-              <select v-model="selectedAssignee">
-                <option value="">All Assignees</option>
-                <option v-for="a in assignees" :key="a" :value="a">{{ a }}</option>
-              </select>
-            </div>
-
-            <div class="filter-group">
-              <label><Clock :size="14" /> Completed Month</label>
-              <select v-model="filterMonth">
-                <option value="">All Time</option>
-                <option v-for="m in completedMonths" :key="m" :value="m">{{ m }}</option>
-              </select>
-            </div>
-
-            <div class="filter-group">
-              <label><Calendar :size="14" /> Specific Date</label>
-              <input type="date" v-model="filterDate" class="date-input" />
-            </div>
+            <h2>Ready to explore?</h2>
+            <p>Upload your Asana CSV export to get started. All processing happens in your browser - your data stays private.</p>
+            <label class="primary-upload-btn">
+              <Upload :size="20" />
+              Select Asana CSV File
+              <input type="file" accept=".csv" @change="handleFileUpload" hidden />
+            </label>
           </div>
         </div>
-      </section>
+      </template>
 
-      <div v-if="loading" class="loading-state">
-        <div class="spinner"></div>
-        <p>Processing data file...</p>
-      </div>
-
-      <div v-else-if="error" class="error-state glass">
-        <p>{{ error }}</p>
-      </div>
-
-      <div v-else class="results-container">
-        <div class="table-wrapper glass">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th v-for="col in visibleColumns" :key="col.key">
-                  {{ col.label }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="task in paginatedTasks" :key="task['Task ID']">
-                <td class="id-col">
-                  <a 
-                    v-if="task['Task ID']"
-                    :href="'https://app.asana.com/0/0/' + task['Task ID']" 
-                    target="_blank" 
-                    class="asana-link"
-                  >
-                    #{{ task['Task ID'].slice(-6) }}
-                  </a>
-                  <span v-else>N/A</span>
-                </td>
-                <td class="name-col">
-                  <div class="name-text">{{ task.Name || 'Untitled Task' }}</div>
-                </td>
-                <td>
-                  <span 
-                    class="badge" 
-                    :style="{ backgroundColor: getStatusColor(task['Section/Column']) + '20', color: getStatusColor(task['Section/Column']) }"
-                  >
-                    {{ task['Section/Column'] || 'Unassigned' }}
-                  </span>
-                </td>
-                <td class="assignee-col">
-                  <div class="flex-center gap-2">
-                    <User :size="14" class="text-dim" />
-                    {{ task.Assignee || '-' }}
-                  </div>
-                </td>
-                <td class="notes-col">
-                  <div class="notes-text" v-if="task.Notes">
-                    {{ task.Notes.length > 100 ? task.Notes.slice(0, 100) + '...' : task.Notes }}
-                  </div>
-                  <span v-else class="text-dim">-</span>
-                </td>
-                <td>{{ formatDate(task['Created At']) }}</td>
-                <td>{{ formatDate(task['Completed At']) }}</td>
-                <td class="tags-col">
-                  <div v-if="task.Tags" class="tag-pill">
-                    {{ task.Tags.split(',')[0] }}
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div v-if="paginatedTasks.length === 0" class="empty-state glass">
-          <p>No tasks match your filters</p>
-          <button @click="searchQuery = ''; selectedSections = []; selectedAssignee = ''; filterMonth = ''; filterDate = ''">Clear All Filters</button>
-        </div>
-
-        <nav class="pagination-nav" v-if="totalPages > 1">
-          <button 
-            @click="currentPage--" 
-            :disabled="currentPage === 1"
-            class="nav-btn"
-          >
-            <ChevronLeft :size="20" />
-          </button>
-          
-          <div class="page-info">
-            Page <span>{{ currentPage }}</span> of {{ totalPages }}
+      <template v-else>
+        <section class="controls glass p-6">
+          <div class="search-wrapper">
+            <Search class="search-icon" :size="20" />
+            <input 
+              v-model="searchQuery" 
+              type="text" 
+              placeholder="Search tasks, IDs, or notes..."
+              class="search-input"
+            />
           </div>
           
-          <button 
-            @click="currentPage++" 
-            :disabled="currentPage === totalPages"
-            class="nav-btn"
-          >
-            <ChevronRight :size="20" />
-          </button>
-        </nav>
-      </div>
+          <div class="filters">
+            <div class="filter-group section-filter">
+              <label><Filter :size="14" /> Sections (Multi-select)</label>
+              <div class="chip-container">
+                <button 
+                  v-for="s in sections" 
+                  :key="s" 
+                  class="chip"
+                  :class="{ active: selectedSections.includes(s) }"
+                  @click="toggleSection(s)"
+                >
+                  {{ s }}
+                </button>
+              </div>
+            </div>
+            
+            <div class="filter-controls">
+              <div class="filter-group">
+                <label><User :size="14" /> Assignee</label>
+                <select v-model="selectedAssignee">
+                  <option value="">All Assignees</option>
+                  <option v-for="a in assignees" :key="a" :value="a">{{ a }}</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label><Clock :size="14" /> Completed Month</label>
+                <select v-model="filterMonth">
+                  <option value="">All Time</option>
+                  <option v-for="m in completedMonths" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label><Calendar :size="14" /> Specific Date</label>
+                <input type="date" v-model="filterDate" class="date-input" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div v-if="loading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Processing data file...</p>
+        </div>
+
+        <div v-else-if="error" class="error-state glass">
+          <p>{{ error }}</p>
+        </div>
+
+        <div v-else class="results-container">
+          <div class="table-wrapper glass">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th v-for="col in visibleColumns" :key="col.key">
+                    {{ col.label }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="task in paginatedTasks" :key="task['Task ID']">
+                  <td class="id-col">
+                    <a 
+                      v-if="task['Task ID']"
+                      :href="'https://app.asana.com/0/0/' + task['Task ID']" 
+                      target="_blank" 
+                      class="asana-link"
+                    >
+                      #{{ task['Task ID'].slice(-6) }}
+                    </a>
+                    <span v-else>N/A</span>
+                  </td>
+                  <td class="name-col">
+                    <div class="name-text">{{ task.Name || 'Untitled Task' }}</div>
+                  </td>
+                  <td>
+                    <span 
+                      class="badge" 
+                      :style="{ backgroundColor: getStatusColor(task['Section/Column']) + '20', color: getStatusColor(task['Section/Column']) }"
+                    >
+                      {{ task['Section/Column'] || 'Unassigned' }}
+                    </span>
+                  </td>
+                  <td class="assignee-col">
+                    <div class="flex-center gap-2">
+                      <User :size="14" class="text-dim" />
+                      {{ task.Assignee || '-' }}
+                    </div>
+                  </td>
+                  <td class="notes-col">
+                    <div class="notes-text" v-if="task.Notes">
+                      {{ task.Notes.length > 100 ? task.Notes.slice(0, 100) + '...' : task.Notes }}
+                    </div>
+                    <span v-else class="text-dim">-</span>
+                  </td>
+                  <td>{{ formatDate(task['Created At']) }}</td>
+                  <td>{{ formatDate(task['Completed At']) }}</td>
+                  <td class="tags-col">
+                    <div v-if="task.Tags" class="tag-pill">
+                      {{ task.Tags.split(',')[0] }}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-if="paginatedTasks.length === 0" class="empty-state glass">
+            <p>No tasks match your filters</p>
+            <button @click="searchQuery = ''; selectedSections = []; selectedAssignee = ''; filterMonth = ''; filterDate = ''">Clear All Filters</button>
+          </div>
+
+          <nav class="pagination-nav" v-if="totalPages > 1">
+            <button 
+              @click="currentPage--" 
+              :disabled="currentPage === 1"
+              class="nav-btn"
+            >
+              <ChevronLeft :size="20" />
+            </button>
+            
+            <div class="page-info">
+              Page <span>{{ currentPage }}</span> of {{ totalPages }}
+            </div>
+            
+            <button 
+              @click="currentPage++" 
+              :disabled="currentPage === totalPages"
+              class="nav-btn"
+            >
+              <ChevronRight :size="20" />
+            </button>
+          </nav>
+        </div>
+      </template>
     </main>
   </div>
 </template>
@@ -799,6 +804,65 @@ select {
   border-radius: 50%;
   animation: s 1s linear infinite;
   margin-bottom: 1rem;
+}
+
+.landing-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8rem 2rem;
+  text-align: center;
+  border-radius: 24px;
+}
+
+.landing-content {
+  max-width: 500px;
+}
+
+.landing-icon-box {
+  background: rgba(99, 102, 241, 0.1);
+  width: 100px;
+  height: 100px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 2rem;
+  color: var(--primary);
+}
+
+.landing-state h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: white;
+}
+
+.landing-state p {
+  color: var(--text-dim);
+  margin-bottom: 2.5rem;
+  line-height: 1.6;
+}
+
+.primary-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--primary);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+}
+
+.primary-upload-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
+  background: var(--primary-hover);
 }
 
 @keyframes s { to { transform: rotate(360deg); } }
