@@ -157,24 +157,59 @@ const visibleColumns = [
 const copySuccess = ref(false)
 
 const copyToClipboard = () => {
-  // Define columns to copy
-  const headers = visibleColumns.map(col => col.label).join('\t')
-  const rows = filteredTasks.value.map(task => {
+  // 1. Generate Plain Text (TSV)
+  const headersText = visibleColumns.map(col => col.label).join('\t')
+  const rowsText = filteredTasks.value.map(task => {
     return visibleColumns.map(col => {
       let val = task[col.key] || ''
-      // Clean up newlines for table compatibility
       return val.toString().replace(/\n/g, ' ')
     }).join('\t')
   }).join('\n')
+  const plainText = headersText + '\n' + rowsText
 
-  const content = headers + '\n' + rows
+  // 2. Generate HTML Table
+  const headersHtml = visibleColumns.map(col => `<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">${col.label}</th>`).join('')
+  const rowsHtml = filteredTasks.value.map(task => {
+    const cells = visibleColumns.map(col => {
+      let val = task[col.key] || ''
+      return `<td style="border: 1px solid #ddd; padding: 8px;">${val.toString().replace(/\n/g, '<br>')}</td>`
+    }).join('')
+    return `<tr>${cells}</tr>`
+  }).join('')
+  
+  const htmlTable = `
+    <table style="border-collapse: collapse; width: 100%; font-family: sans-serif;">
+      <thead><tr>${headersHtml}</tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `
 
-  navigator.clipboard.writeText(content).then(() => {
-    copySuccess.value = true
-    setTimeout(() => copySuccess.value = false, 2000)
-  }).catch(err => {
-    error.value = "Failed to copy: " + err
-  })
+  // 3. Write to Clipboard using ClipboardItem for multi-format support
+  const textBlob = new Blob([plainText], { type: 'text/plain' })
+  const htmlBlob = new Blob([htmlTable], { type: 'text/html' })
+
+  try {
+    const data = [new ClipboardItem({
+      'text/plain': textBlob,
+      'text/html': htmlBlob
+    })]
+    
+    navigator.clipboard.write(data).then(() => {
+      copySuccess.value = true
+      setTimeout(() => copySuccess.value = false, 2000)
+    }).catch(err => {
+      error.value = "Failed to copy: " + err
+      console.error(err)
+    })
+  } catch (err) {
+    // Fallback for browsers that don't support ClipboardItem fully
+    navigator.clipboard.writeText(plainText).then(() => {
+      copySuccess.value = true
+      setTimeout(() => copySuccess.value = false, 2000)
+    }).catch(e => {
+      error.value = "Failed to copy: " + e
+    })
+  }
 }
 
 watch([searchQuery, selectedSections, selectedAssignee, filterMonth, filterDate], () => {
